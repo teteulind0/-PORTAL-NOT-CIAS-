@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Portal de Notícias com Admin</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 700px;
+    margin: 20px auto;
+    background: #f9f9f9;
+    padding: 20px;
+  }
+  h1, h2 {
+    text-align: center;
+  }
+  section {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 8px #ccc;
+    margin-bottom: 20px;
+  }
+  input, textarea, button {
+    width: 100%;
+    padding: 10px;
+    margin: 8px 0;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 1rem;
+    box-sizing: border-box;
+  }
+  button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+  button:hover {
+    background-color: #0056b3;
+  }
+  .news-item {
+    background: #eef1f5;
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 6px;
+    position: relative;
+  }
+  .news-item img {
+    max-width: 100%;
+    border-radius: 5px;
+    margin-top: 10px;
+  }
+  .news-item iframe {
+    margin-top: 10px;
+    width: 100%;
+    height: 250px;
+    border-radius: 8px;
+    border: none;
+  }
+  .delete-btn, .edit-btn {
+    position: absolute;
+    top: 8px;
+    padding: 4px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: white;
+    border: none;
+  }
+  .delete-btn {
+    right: 8px;
+    background: #dc3545;
+  }
+  .delete-btn:hover {
+    background: #a71d2a;
+  }
+  .edit-btn {
+    right: 70px;
+    background: #28a745;
+  }
+  .edit-btn:hover {
+    background: #1e7e34;
+  }
+  #notificationPanel {
+    background: #f1f8ff;
+    border: 1px solid #007bff;
+    padding: 10px 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    max-height: 150px;
+    overflow-y: auto;
+  }
+  #notificationPanel h3 {
+    margin-top: 0;
+    font-size: 1.2rem;
+    color: #007bff;
+  }
+  .notification-item {
+    background: #d9eaff;
+    border-radius: 5px;
+    padding: 8px;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    word-wrap: break-word;
+  }
+  #logoutBtn {
+    background-color: #999;
+    margin-bottom: 15px;
+  }
+</style>
+</head>
+<body>
+
+  <h1>Portal de Notícias</h1>
+
+  <!-- Lista pública das notícias -->
+  <section id="newsListSection">
+    <h2>Notícias</h2>
+    <div id="newsList"></div>
+  </section>
+
+  <!-- Login admin -->
+  <section id="loginSection">
+    <h2>Login do Administrador</h2>
+    <div id="loginError" style="color: red; text-align:center;"></div>
+    <input type="password" id="passwordInput" placeholder="Digite a senha" />
+    <button id="loginBtn">Entrar</button>
+  </section>
+
+  <!-- Área admin -->
+  <section id="adminSection" style="display:none;">
+    <h2>Área do Administrador</h2>
+    <button id="logoutBtn">Sair do Admin</button>
+
+    <div id="notificationPanel">
+      <h3>Notificações do Admin</h3>
+      <div id="notificationsList"></div>
+      <textarea id="notificationInput" rows="2" placeholder="Escreva uma notificação..."></textarea>
+      <button id="sendNotificationBtn">Enviar Notificação</button>
+    </div>
+
+    <input type="text" id="newsTitle" placeholder="Título da notícia" />
+    <input type="file" id="newsImageFile" accept="image/*" />
+    <input type="text" id="newsVideoUrl" placeholder="URL do vídeo (ex: YouTube)" />
+    <textarea id="newsContent" placeholder="Conteúdo da notícia" rows="4"></textarea>
+    <button id="addNewsBtn">Publicar Notícia</button>
+
+  </section>
+
+<script>
+  const correctPassword = "Vrmd1914";
+
+  // Elementos
+  const loginSection = document.getElementById("loginSection");
+  const adminSection = document.getElementById("adminSection");
+  const loginBtn = document.getElementById("loginBtn");
+  const passwordInput = document.getElementById("passwordInput");
+  const loginError = document.getElementById("loginError");
+
+  const logoutBtn = document.getElementById("logoutBtn");
+
+  const newsList = document.getElementById("newsList");
+
+  const newsTitle = document.getElementById("newsTitle");
+  const newsContent = document.getElementById("newsContent");
+  const newsImageFile = document.getElementById("newsImageFile");
+  const newsVideoUrl = document.getElementById("newsVideoUrl");
+  const addNewsBtn = document.getElementById("addNewsBtn");
+
+  const notificationInput = document.getElementById("notificationInput");
+  const sendNotificationBtn = document.getElementById("sendNotificationBtn");
+  const notificationsList = document.getElementById("notificationsList");
+
+  let newsArray = [];
+  let notifications = [];
+
+  // Para edição
+  let editIndex = -1;
+
+  // Função para carregar notícias e notificações do localStorage
+  function loadFromStorage() {
+    const storedNews = localStorage.getItem("noticias");
+    if(storedNews) {
+      newsArray = JSON.parse(storedNews);
+    }
+    const storedNotes = localStorage.getItem("notificacoes");
+    if(storedNotes) {
+      notifications = JSON.parse(storedNotes);
+    }
+  }
+
+  // Salvar notícias no localStorage
+  function saveNewsToStorage() {
+    localStorage.setItem("noticias", JSON.stringify(newsArray));
+  }
+
+  // Salvar notificações no localStorage
+  function saveNotificationsToStorage() {
+    localStorage.setItem("notificacoes", JSON.stringify(notifications));
+  }
+
+  // Renderizar notícias públicas
+  function renderNews() {
+    newsList.innerHTML = "";
+    if(newsArray.length === 0) {
+      newsList.innerHTML = "<p>Nenhuma notícia publicada ainda.</p>";
+      return;
+    }
+    newsArray.forEach((news, index) => {
+      const div = document.createElement("div");
+      div.className = "news-item";
+
+      let videoHTML = "";
+      if(news.videoUrl) {
+        const youtubeId = getYouTubeID(news.videoUrl);
+        if(youtubeId) {
+          videoHTML = `<iframe src="https://www.youtube.com/embed/${youtubeId}" allowfullscreen></iframe>`;
+        } else {
+          videoHTML = `<p><a href="${news.videoUrl}" target="_blank" rel="noopener">Vídeo Link</a></p>`;
+        }
+      }
+
+      div.innerHTML = `
+        <h3>${news.title}</h3>
+        <p>${news.content}</p>
+        ${news.image ? `<img src="${news.image}" alt="Imagem da notícia" />` : ""}
+        ${videoHTML}
+        <small style="display:block; margin-top: 10px; color: gray;">Administrador: ${news.admin}</small>
+        ${adminSection.style.display === 'block' ? `
+          <button class="edit-btn" data-index="${index}">Editar</button>
+          <button class="delete-btn" data-index="${index}">Apagar</button>
+        ` : ''}
+      `;
+
+      newsList.appendChild(div);
+    });
+
+    // Adicionar eventos para editar e apagar (apenas se admin logado)
+    if(adminSection.style.display === 'block') {
+      document.querySelectorAll(".delete-btn").forEach(btn => {
+        btn.onclick = () => {
+          const idx = parseInt(btn.getAttribute("data-index"));
+          if(confirm("Deseja realmente apagar essa notícia?")) {
+            newsArray.splice(idx, 1);
+            saveNewsToStorage();
+            renderNews();
+          }
+        };
+      });
+      document.querySelectorAll(".edit-btn").forEach(btn => {
+        btn.onclick = () => {
+          const idx = parseInt(btn.getAttribute("data-index"));
+          editIndex = idx;
+          const news = newsArray[idx];
+          newsTitle.value = news.title;
+          newsContent.value = news.content;
+          newsVideoUrl.value = news.videoUrl || "";
+          newsImageFile.value = ""; // Não conseguimos setar base64 em input file, então usuário pode deixar vazio para manter
+          addNewsBtn.textContent = "Salvar Alterações";
+          window.scrollTo(0, 0);
+        };
+      });
+    }
+  }
+
+  // Pegar ID do vídeo do YouTube para iframe (funcionando para URLs padrão)
+  function getYouTubeID(url) {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  }
+
+  // Converter arquivo imagem para base64
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      if(!file) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = err => reject(err);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Login
+  loginBtn.addEventListener("click", () => {
+    const pass = passwordInput.value.trim();
+    if(pass === correctPassword) {
+      isAdmin = true;
+      loginError.textContent = "";
+      passwordInput.value = "";
+      loginSection.style.display = "none";
+      adminSection.style.display = "block";
+      renderNotifications();
+      renderNews();
+    } else {
+      loginError.textContent = "Senha incorreta!";
+    }
+  });
+
+  // Logout admin
+  logoutBtn.addEventListener("click", () => {
+    isAdmin = false;
+    adminSection.style.display = "none";
+    loginSection.style.display = "block";
+    editIndex = -1;
+    addNewsBtn.textContent = "Publicar Notícia";
+    newsTitle.value = "";
+    newsContent.value = "";
+    newsVideoUrl.value = "";
+    newsImageFile.value = "";
+    loginError.textContent = "";
+    renderNews();
+  });
+
+  // Adicionar ou editar notícia
+  addNewsBtn.addEventListener("click", async () => {
+    const title = newsTitle.value.trim();
+    const content = newsContent.value.trim();
+    const videoUrl = newsVideoUrl.value.trim();
+    const file = newsImageFile.files[0];
+
+    if(!title || !content) {
+      alert("Título e conteúdo são obrigatórios.");
+      return;
+    }
+
+    const imageBase64 = await fileToBase64(file);
+
+    if(editIndex >= 0) {
+      // Editar notícia existente
+      if(imageBase64) {
+        newsArray[editIndex].image = imageBase64;
+      }
+      newsArray[editIndex].title = title;
+      newsArray[editIndex].content = content;
+      newsArray[editIndex].videoUrl = videoUrl;
+      saveNewsToStorage();
+      editIndex = -1;
+      addNewsBtn.textContent = "Publicar Notícia";
+    } else {
+      // Nova notícia
+      const newNews = {
+        title,
+        content,
+        image: imageBase64,
+        videoUrl,
+        admin: "Administrador"
+      };
+      newsArray.unshift(newNews);
+      saveNewsToStorage();
+    }
+    renderNews();
+
+    // Limpar campos
+    newsTitle.value = "";
+    newsContent.value = "";
+    newsVideoUrl.value = "";
+    newsImageFile.value = "";
+  });
+
+  // Enviar notificação admin
+  sendNotificationBtn.addEventListener("click", () => {
+    const text = notificationInput.value.trim();
+    if(!text) return alert("Digite uma notificação para enviar.");
+    const date = new Date().toLocaleString();
+    notifications.push({ text, date });
+    saveNotificationsToStorage();
+    renderNotifications();
+    notificationInput.value = "";
+  });
+
+  // Inicializar app
+  let isAdmin = false;
+  loadFromStorage();
+  renderNews();
+
+</script>
+</body>
+</html>
